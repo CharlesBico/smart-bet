@@ -2,3 +2,5 @@ archives/
 *.pdf
 *.db
 __pycache__/
+smartbet.db
+*.pyc

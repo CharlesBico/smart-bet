@@ -1,88 +1,48 @@
+import os
 from flask import Flask, jsonify, request
-import random
-import time
-from threading import Thread
+from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
+CORS(app)
 
-# =========================
-# CONFIGURATION
-# =========================
-DUREE_PARIS = 300   # 5 minutes avant fermeture
-paris = []          # liste de tous les paris
-# Structure d'un pari :
-# {
-#   "joueur": "Ali",
-#   "match": "Real vs Barca",
-#   "heure_debut": timestamp,
-#   "vainqueur": "Real",
-#   "mise": 1000,
-#   "statut": "En attente" / "Validé"
-# }
+# -----------------------------
+# CONFIG DATABASE
+# -----------------------------
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://")  # compatibilité SQLAlchemy
+else:
+    DATABASE_URL = "sqlite:///smartbet.db"
 
-# =========================
-# ENDPOINTS EXISTANTS
-# =========================
-@app.route("/parier", methods=["POST"])
-def add_pari():
-    data = request.get_json()
-    joueur = data.get("joueur")
-    match = data.get("match")
-    heure_debut = data.get("heure_debut")  # timestamp ou string
-    vainqueur = data.get("vainqueur")
-    mise = data.get("mise")
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-    # Vérifier que H-5 min n'est pas dépassé
-    heure_timestamp = time.mktime(time.strptime(heure_debut, "%Y-%m-%d %H:%M"))
-    if time.time() > heure_timestamp - DUREE_PARIS:
-        return jsonify({"error": "Paris fermés (H-5 minutes)"}), 400
+db = SQLAlchemy(app)
 
-    # Ajouter le pari avec statut "En attente"
-    pari = {
-        "joueur": joueur,
-        "match": match,
-        "heure_debut": heure_timestamp,
-        "vainqueur": vainqueur,
-        "mise": mise,
-        "statut": "En attente"
-    }
-    paris.append(pari)
+# -----------------------------
+# MODELS
+# -----------------------------
+class Utilisateur(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nom = db.Column(db.String(100), nullable=False)
+    tel = db.Column(db.String(20), unique=True, nullable=False)
+    solde = db.Column(db.Float, default=0.0)
 
-    # Vérifier si on peut valider (même match, même mise, équipe adverse)
-    for autre_pari in paris:
-        if (
-            autre_pari["match"] == match
-            and autre_pari["mise"] == mise
-            and autre_pari["vainqueur"] != vainqueur
-            and autre_pari["statut"] == "En attente"
-        ):
-            # Valider les deux paris
-            pari["statut"] = "Validé"
-            autre_pari["statut"] = "Validé"
-            break
+# Pour simplifier, on peut continuer avec paris en mémoire ou créer une table Match/Pari
 
-    return jsonify({"message": "Pari enregistré", "statut": pari["statut"]})
+# -----------------------------
+# ROUTES (exemple)
+# -----------------------------
+@app.route("/", methods=["GET"])
+def index():
+    return jsonify({"status": "SmartBet backend OK"})
 
-# =========================
-# NOUVEL ENDPOINT : LISTE DES PARIS
-# =========================
-@app.route("/paris")
-def liste_paris():
-    # Retourner tous les paris
-    resultats = []
-    for p in paris:
-        resultats.append({
-            "joueur": p["joueur"],
-            "match": p["match"],
-            "heure_debut": time.strftime("%Y-%m-%d %H:%M", time.localtime(p["heure_debut"])),
-            "vainqueur": p["vainqueur"],
-            "mise": p["mise"],
-            "statut": p["statut"]
-        })
-    return jsonify(resultats)
-
-# =========================
+# -----------------------------
 # LANCEMENT
-# =========================
+# -----------------------------
+with app.app_context():
+    db.create_all()
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run()
