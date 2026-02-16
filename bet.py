@@ -61,7 +61,7 @@ def register():
         return jsonify({"error": "Utilisateur existe déjà"}), 400
 
     # Création admin spécial (tel = 0000000000)
-    role = "admin" if tel == "0000000000" else "user"
+    role = "admin" if tel == "0100000000" else "user"
 
     user = Utilisateur(nom=nom, tel=tel, solde=0.0, role=role)
     db.session.add(user)
