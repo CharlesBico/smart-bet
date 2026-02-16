@@ -28,6 +28,7 @@ class Utilisateur(db.Model):
     nom = db.Column(db.String(100), nullable=False)
     tel = db.Column(db.String(20), unique=True, nullable=False)
     solde = db.Column(db.Float, default=0.0)
+    role = db.Column(db.String(20), default="user")  # ← AJOUT
 
 # Pour simplifier, on peut continuer avec paris en mémoire ou créer une table Match/Pari
 
@@ -42,7 +43,9 @@ def index():
 # REGISTER
 # -----------------------------
 @app.route("/register", methods=["POST"])
+
 def register():
+
     data = request.get_json()
 
     if not data or "nom" not in data or "tel" not in data:
@@ -51,12 +54,15 @@ def register():
     nom = data["nom"]
     tel = data["tel"]
 
+
     # Vérifie si utilisateur existe déjà
     existing_user = Utilisateur.query.filter_by(tel=tel).first()
     if existing_user:
         return jsonify({"error": "Utilisateur déjà existant"}), 400
 
-    new_user = Utilisateur(nom=nom, tel=tel)
+    role = "admin" if tel == "0700000000" else "user"
+    new_user = Utilisateur(nom=nom, tel=tel, role=role)
+    # new_user = Utilisateur(nom=nom, tel=tel)
     db.session.add(new_user)
     db.session.commit()
 
@@ -90,7 +96,8 @@ def login():
         "id": user.id,
         "nom": user.nom,
         "tel": user.tel,
-        "solde": user.solde
+        "solde": user.solde,
+        "role": user.role  # ← AJOUT
     }), 200
 
 
