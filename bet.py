@@ -150,8 +150,13 @@ def liste_matchs():
 def parier():
     data = request.get_json()
 
-    joueur = Utilisateur.query.filter_by(tel=data.get("joueur_tel")).first()
-    match = Match.query.filter_by(nom=data.get("match")).first()
+    joueur = Utilisateur.query.filter_by(
+        tel=data.get("joueur_tel")
+    ).first()
+
+    match = Match.query.get(data.get("match_id"))
+
+    choix = data.get("choix")
     mise = float(data.get("mise", 0))
 
     if not joueur or not match:
@@ -163,21 +168,49 @@ def parier():
     if joueur.solde < mise:
         return jsonify({"error": "Solde insuffisant"}), 400
 
-    # Déduction immédiate
-    joueur.solde -= mise
+    # Chercher pari opposé
+    pari_existant = Pari.query.filter(
+        Pari.match_id == match.id,
+        Pari.mise == mise,
+        Pari.choix != choix,
+        Pari.statut == "En attente"
+    ).first()
 
-    pari = Pari(
+    # Créer nouveau pari
+    nouveau_pari = Pari(
         utilisateur_id=joueur.id,
         match_id=match.id,
-        choix=data.get("choix"),
-        mise=mise
+        choix=choix,
+        mise=mise,
+        statut="En attente"
     )
 
-    db.session.add(pari)
+    db.session.add(nouveau_pari)
+
+    # Si on trouve un pari opposé
+    if pari_existant:
+        joueur2 = Utilisateur.query.get(pari_existant.utilisateur_id)
+
+        # Déduction des 2 soldes
+        joueur.solde -= mise
+        joueur2.solde -= mise
+
+        nouveau_pari.statut = "Validé"
+        pari_existant.statut = "Validé"
+
+        db.session.commit()
+
+        return jsonify({
+            "message": "Pari validé !",
+            "statut": "Validé"
+        })
+
     db.session.commit()
 
-    return jsonify({"message": "Pari enregistré"})
-
+    return jsonify({
+        "message": "Pari en attente",
+        "statut": "En attente"
+    })
 
 # -----------------------------
 # ADMIN - GESTION SOLDES
